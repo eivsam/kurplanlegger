@@ -85,8 +85,6 @@ details a{color:var(--acc)}
       <h2>1 · Diagnose og kur</h2>
       <label class="f" for="diag">Diagnose</label>
       <select id="diag"></select>
-      <label class="f" for="diagtekst">Diagnosetekst i notatet <span style="font-weight:400;color:var(--mute)">(kan suppleres, f.eks. undertype, stadium, linje)</span></label>
-      <input type="text" id="diagtekst" placeholder="Fylles inn når du velger diagnose">
       <label class="f" for="kur">Kurdefinisjon</label>
       <select id="kur" disabled></select>
       <div id="kurinfo"></div>
@@ -120,7 +118,7 @@ details a{color:var(--acc)}
         <h2>Innstillinger</h2>
         <div class="opts">
           <label><input type="checkbox" id="optUkedag"> Vis ukedag ved datoer</label>
-          <label><input type="checkbox" id="optNeste"> Vis planlagt start neste syklus</label>
+          <label><input type="checkbox" id="optNeste"> Vis planlagt start neste syklus (når én syklus er laget)</label>
           <label><input type="checkbox" id="optKomma"> Støttebehandling på én linje</label>
         </div>
         <label class="f" for="optPk">Overskrift for iv/sc-medikamenter</label>
@@ -130,12 +128,12 @@ details a{color:var(--acc)}
   </section>
   <section>
     <div class="card">
-      <h2 style="display:flex;align-items:center">Journaltekst <button id="kopierAlle" style="margin-left:auto;text-transform:none;letter-spacing:0">Kopier alle sykluser</button></h2>
+      <h2 style="display:flex;align-items:center">Journaltekst <button id="kopierAlle" style="margin-left:auto;text-transform:none;letter-spacing:0">Kopier notat</button></h2>
       <div id="output"><p style="color:var(--mute)">Velg diagnose og kur for å lage tekst.</p></div>
     </div>
     <div class="card">
       <details><summary>Kurer på siden og kilder</summary>
-        <p>Kurdata er hentet fra <a href="https://kurbibliotek.metodebok.no/" target="_blank" rel="noopener">Kurbibliotek HSØ</a> 18.11.2026. Dara-VRd og DRd er satt sammen etter Handlingsprogram for myelomatose v1.4 (okt. 2026). For VenO følger venetoklaks-opptrappingen preparatomtalen. Rituksimab monoterapi (Nordisk regime) følger Kimby et al., Leuk Lymphoma 2015.</p>
+        <p>Myelomatosekurene følger Nasjonalt handlingsprogram for myelomatose v1.4 (okt. 2026). Lymfomkurene er hentet fra <a href="https://kurbibliotek.metodebok.no/" target="_blank" rel="noopener">Kurbibliotek HSØ</a> 18.11.2026. Rituksimab monoterapi (Nordisk regime) følger Kimby et al., Leuk Lymphoma 2015.</p>
         <ul id="kildeliste"></ul>
       </details>
     </div>
@@ -153,11 +151,6 @@ const DIAGNOSER = [
   ["MM", "Myelomatose"],
   ["DLBCL", "Diffust storcellet B-cellelymfom (DLBCL)"],
   ["FL", "Follikulært lymfom"],
-  ["MCL", "Mantelcellelymfom"],
-  ["HL", "Hodgkin lymfom"],
-  ["KLL", "Kronisk lymfatisk leukemi (KLL)"],
-  ["AML", "Akutt myelogen leukemi (AML)"],
-  ["MDS", "Myelodysplastisk syndrom (MDS)"],
 ];
 
 // Gjenbrukte tekster
@@ -176,6 +169,9 @@ const S_PEG = "Pegfilgrastim 6 mg sc 24 t etter avsluttet kur";
 const S_PEG21 = "Pegfilgrastim 6 mg sc 24 t etter avsluttet kur (ved 21-dagers kur: vurderes individuelt, rutinemessig ved alder > 60 år eller tidligere nøytropen feber)";
 const S_BISPEC = [S_VALA250, S_BACTRIM, "IVIG/SCIG ved IgG < 4 g/L eller økt infeksjonstendens", "Unngå G-CSF ved risiko for CRS"];
 
+const P_ISA_HP = "Deksametason behandlingsdose gis som forbehandling før isatuksimab. Ved de to første dosene og inntil en ukomplisert injeksjon gis også cetirizin 10 mg og paracetamol 1000 mg 1-3 t før. Ved KOLS/astma: montelukast før de første dosene.";
+const S_OYE = "Kunstig tårevæske uten konserveringsmiddel minst x 4 daglig under hele behandlingen; unngå kontaktlinser";
+const S_BISPEC_HP = ["Po Valaciklovir (Valtrex) 250-500 mg x 2 fra oppstart og i minst ett år", "Po Trimetoprim/sulfa (Bactrim) 2 tabletter x 3 per uke", "Immunglobulinsubstitusjon vurderes ved IgG < 4 g/L (stort sett fra syklus 2)", "Sjekk vaksinasjonsstatus før oppstart", "G-CSF bør unngås under opptrapping"];
 const DEX_40_20 = "40 mg (≥ 75 år: 20 mg)";
 const DARA_SC = { n: "Daratumumab", d: "1800 mg", r: "sc", s: [[1, 2, "1,8,15,22"], [3, 6, "1,15"], [7, null, "1"]] };
 const BORT_1_8 = { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, 8, "1,8,15"]] };
@@ -184,170 +180,145 @@ const DEX_WEEKLY = { n: "Deksametason", d: DEX_40_20, r: "po", s: [[1, null, "1,
 const R375 = { n: "Rituksimab", d: "375 mg/m²", r: "iv", s: [[1, null, "1"]] };
 
 const KURER = [
-  // ---------------- MYELOMATOSE ----------------
-  { id: "isavrd-iv", diag: ["MM"], navn: "Isa-VRd (isatuksimab iv)", full: "isatuksimab/bortezomib/lenalidomid/deksametason",
-    ref: "Blod 537abcd", url: KB + "RTWJPp6t", len: 28, ver: "v2.4, 10.11.2026",
-    meds: [DEX_WEEKLY, LEN,
-      { n: "Isatuksimab", d: "10 mg/kg", r: "iv", s: [[1, 1, "1,8,15,22"], [2, 21, "1,15"], [22, null, "1"]] },
-      BORT_1_8],
-    premed: [P_ISA],
-    stotte: [S_VALA250 + " (til 1-2 uker etter avsluttet bortezomib)", S_ASA],
-    warn: "Handlingsprogram for myelomatose v1.4 (okt. 2026) angir isatuksimab dag 1, 15 i syklus 2-17 og dag 1 fra syklus 18. Kurbiblioteket angir dag 1, 15 i syklus 2-21 og dag 1 fra syklus 22. Siden følger kurbiblioteket." },
-  { id: "isavrd-sc", diag: ["MM"], navn: "Isa-VRd (isatuksimab sc)", full: "isatuksimab sc/bortezomib/lenalidomid/deksametason",
-    ref: "Blod 615abcd", url: KB + "Ka62mtvM", len: 28,
-    meds: [DEX_WEEKLY, LEN,
-      { n: "Isatuksimab", d: "1400 mg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, 21, "1,15"], [22, null, "1"]] },
-      BORT_1_8],
-    premed: [P_ISA],
-    stotte: [S_VALA250 + " (til 1-2 uker etter avsluttet bortezomib)", S_ASA],
-    warn: "Handlingsprogram for myelomatose v1.4 (okt. 2026) angir isatuksimab dag 1, 15 i syklus 2-17 og dag 1 fra syklus 18. Kurbiblioteket angir dag 1, 15 i syklus 2-21 og dag 1 fra syklus 22. Siden følger kurbiblioteket." },
-  { id: "daravrd", diag: ["MM"], navn: "Dara-VRd", full: "daratumumab/bortezomib/lenalidomid/deksametason",
-    ref: "Handlingsprogram myelomatose v1.4 (Blod 515-517/266 + lenalidomid)", url: KB + "4kwMWWCe", len: 28,
-    meds: [DEX_WEEKLY, LEN, DARA_SC, BORT_1_8],
-    premed: [P_DARA_HP],
-    stotte: [S_VALA250, S_ASA],
-    warn: "Sammensatt etter Handlingsprogram for myelomatose v1.4. I kurbiblioteket finnes Dara-Vd (Blod 515-517, deksametason dag 1, 8, 15) og daratumumab alene (Blod 266); lenalidomid og deksametason forordnes via resept/kurve. Lav terskel for å seponere deksametason etter 12 måneder." },
-  { id: "drd", diag: ["MM"], navn: "DRd", full: "daratumumab/lenalidomid/deksametason",
-    ref: "Handlingsprogram myelomatose v1.4 (Blod 264-266 + lenalidomid)", url: KB + "FrDmpJCf", len: 28,
-    meds: [DEX_WEEKLY, LEN, DARA_SC],
-    premed: [P_DARA_HP],
-    stotte: [S_VALA250, S_ASA],
-    warn: "Sammensatt etter Handlingsprogram for myelomatose v1.4. Daratumumab følger Blod 264-266; lenalidomid og deksametason forordnes via resept/kurve. Lav terskel for å seponere deksametason etter 12 måneder." },
-  { id: "daravd", diag: ["MM"], navn: "Dara-Vd", full: "daratumumab/bortezomib/deksametason",
-    ref: "Blod 515-517 (+ Blod 266 fra syklus 9)", url: KB + "4kwMWWCe", len: 28, ver: "v1.6, 10.11.2026",
-    meds: [
-      { n: "Deksametason", d: "40 mg (> 75 år: 20 mg)", r: "po", s: [[1, 8, "1,8,15"]] },
-      { n: "Daratumumab", d: "1800 mg", r: "sc", s: [[1, 2, "1,8,15,22"], [3, 6, "1,15"], [7, null, "1"]] },
-      BORT_1_8],
-    premed: ["Minst 1 t før daratumumab: antihistamin (cetirizin 10 mg po el. deksklorfeniramin 5 mg iv) og paracetamol 1 g po. Dagens deksametasondose inngår som steroid. Montelukast 10 mg po kan vurderes ved KOLS/astma."],
-    stotte: [S_VALA250 + " (til 3 mnd etter avsluttet daratumumab)", S_ULCUS + " vurderes", "G-CSF kan vurderes"],
-    warn: "Blod 515-517 dekker syklus 1-8. Fra syklus 9 kan daratumumab sc gis alene (Blod 266, dag 1)." },
-  { id: "dara", diag: ["MM"], navn: "Daratumumab monoterapi", full: "daratumumab sc",
-    ref: "Blod 264-266", url: KB + "FrDmpJCf", len: 28, ver: "v1.5, 10.11.2026",
-    meds: [DARA_SC],
-    premed: ["Minst 1 t før daratumumab: antihistamin (cetirizin 10 mg po el. deksklorfeniramin 5 mg iv), paracetamol 1 g po og deksametason 20 mg po (alt. metylprednisolon 100 mg iv kur 1-2, 60 mg senere). Deksametason 4 mg x 1 po dag 2 og 3. Montelukast 10 mg po kan vurderes ved KOLS/astma."],
-    stotte: ["Ved lungesykdom (astma/KOLS): vurder antihistamin, montelukast, β2-agonist"] },
-  { id: "veldex-21", diag: ["MM"], navn: "VelDex 21 dager (dag 1, 8)", full: "bortezomib/deksametason",
-    ref: "Blod 085a", url: KB + "RRSEvA8a", len: 21,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, null, "1,2,8,9"]] },
-      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8"]] }],
-    premed: [], stotte: [] },
-  { id: "veldex-28", diag: ["MM"], navn: "VelDex 28 dager (dag 1, 8, 15)", full: "bortezomib/deksametason",
-    ref: "Blod 085c", url: KB + "RRSEvA8a", len: 28,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, null, "1,2,8,9,15,16"]] },
+  // ---------------- MYELOMATOSE (Handlingsprogram for myelomatose v1.4, okt. 2026) ----------------
+  // Førstelinje – kandidater for HMAS
+  { id: "mm-vrd-ind", diag: ["MM"], navn: "VRd induksjon før HMAS", full: "bortezomib/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28, maks: 6, linje: "1. linje, HMAS-kandidat",
+    meds: [{ n: "Deksametason", d: "40 mg", r: "po", s: [[1, null, "1,8,15,22"]] },
+      { n: "Lenalidomid", d: "25 mg (eGFR < 30: 15 mg)", r: "po", s: [[1, null, "1-21"]] },
       { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8,15"]] }],
-    premed: [], stotte: [] },
-  { id: "veldex-35", diag: ["MM"], navn: "VelDex 35 dager (dag 1, 8, 15, 22)", full: "bortezomib/deksametason",
-    ref: "Blod 085b", url: KB + "RRSEvA8a", len: 35,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, null, "1,2,8,9,15,16,22,23"]] },
-      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8,15,22"]] }],
-    premed: [], stotte: [] },
-  { id: "kd-2056", diag: ["MM"], navn: "Kd 20/56", full: "karfilzomib/deksametason",
-    ref: "Blod 373 (syklus 1) / 420 (syklus 2+)", url: KB + "m4tSxXFf", len: 28,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, null, "1,8,15"]] },
-      { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
-      { n: "Karfilzomib", d: "56 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: [P_KARF], stotte: [] },
-  { id: "kd-2070", diag: ["MM"], navn: "Kd 20/70", full: "karfilzomib/deksametason",
-    ref: "Blod 421 (syklus 1) / 362 (syklus 2+)", url: KB + "m4tSxXFf", len: 28,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, null, "1,8,15"]] },
-      { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
-      { n: "Karfilzomib", d: "70 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: [P_KARF], stotte: [] },
-  { id: "isakd-iv-2070", diag: ["MM"], navn: "Isa-Kd 20/70 (isatuksimab iv)", full: "isatuksimab/karfilzomib/deksametason",
-    ref: "Blod 447 (syklus 1) / 448 (syklus 2+)", url: KB + "3CuGkJY3", len: 28,
-    meds: [{ n: "Deksametason", d: "40 mg (> 75 år/skrøpelige: 20 mg)", r: "po", s: [[1, null, "1,8,15,22"]] },
-      { n: "Isatuksimab", d: "10 mg/kg", r: "iv", s: [[1, 1, "1,8,15,22"], [2, null, "1,15"]] },
-      { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
-      { n: "Karfilzomib", d: "70 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: [P_KARF, P_ISA], stotte: [S_VALA250],
-    warn: "Maks. kroppsoverflate 2,2 m² for overflatedoserte medikamenter. Kurbiblioteket: «infeksjonsprofylakse etter vanlige retningslinjer»; valaciklovir er hentet fra handlingsprogrammet." },
-  { id: "isakd-iv-2056", diag: ["MM"], navn: "Isa-Kd 20/56 (isatuksimab iv)", full: "isatuksimab/karfilzomib/deksametason",
-    ref: "Blod 449 (syklus 1) / 450 (syklus 2+)", url: KB + "3CuGkJY3", len: 28,
-    meds: [{ n: "Deksametason", d: "40 mg (> 75 år/skrøpelige: 20 mg)", r: "po", s: [[1, null, "1,8,15,22"]] },
-      { n: "Isatuksimab", d: "10 mg/kg", r: "iv", s: [[1, 1, "1,8,15,22"], [2, null, "1,15"]] },
-      { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
-      { n: "Karfilzomib", d: "56 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: [P_KARF, P_ISA], stotte: [S_VALA250],
-    warn: "Maks. kroppsoverflate 2,2 m² for overflatedoserte medikamenter." },
-  { id: "isakd-sc", diag: ["MM"], navn: "Isa-Kd 20/70 (isatuksimab sc)", full: "isatuksimab sc/karfilzomib/deksametason",
-    ref: "Blod 613ab", url: KB + "dbrFRvWy", len: 28,
-    meds: [{ n: "Deksametason", d: "40 mg (> 75 år/skrøpelige: 20 mg)", r: "po", s: [[1, null, "1,8,15,22"]] },
+    premed: [],
+    stotte: [S_VALA250, S_ASA],
+    oppf: [[3, 3, 4, "Stamcellehøsting planlegges etter 3. induksjonssyklus"]],
+    warn: "6 sykluser før HMAS. Stamcellehøsting etter 3. syklus, deretter de tre siste induksjonssyklusene." },
+  { id: "mm-daravrd-ind", diag: ["MM"], navn: "Dara-VRd induksjon før HMAS (ikke refundert)", full: "daratumumab/bortezomib/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28, maks: 6, linje: "1. linje, HMAS-kandidat",
+    meds: [{ n: "Deksametason", d: "40 mg", r: "po", s: [[1, null, "1,8,15,22"]] },
+      { n: "Lenalidomid", d: "25 mg (eGFR < 30: 15 mg)", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Daratumumab", d: "1800 mg", r: "sc", s: [[1, 2, "1,8,15,22"], [3, 6, "1,15"]] },
+      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8,15"]] }],
+    premed: [P_DARA_HP],
+    stotte: [S_VALA250, S_ASA],
+    oppf: [[3, 3, 4, "Stamcellehøsting planlegges etter 3. induksjonssyklus (minst 4 uker etter siste daratumumab)"]],
+    warn: "IKKE REFUNDERT – til metodevurdering i Nye Metoder. 6 sykluser før HMAS; stamcellehøsting etter 3. syklus, minst 4 uker etter siste daratumumabdose." },
+  { id: "mm-isavrd-ind", diag: ["MM"], navn: "Isa-VRd induksjon før HMAS (ikke refundert)", full: "isatuksimab/bortezomib/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28, maks: 6, linje: "1. linje, HMAS-kandidat",
+    meds: [{ n: "Deksametason", d: "40 mg", r: "po", s: [[1, null, "1,8,15,22"]] },
+      { n: "Lenalidomid", d: "25 mg (eGFR < 30: 15 mg)", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Isatuksimab", d: "1400 mg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, null, "1,15"]] },
+      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8,15"]] }],
+    premed: [P_ISA_HP],
+    stotte: [S_VALA250, S_ASA],
+    oppf: [[3, 3, 4, "Stamcellehøsting planlegges etter 3. induksjonssyklus"]],
+    warn: "IKKE REFUNDERT – til metodevurdering i Nye Metoder. 6 sykluser før HMAS; stamcellehøsting etter 3. syklus." },
+  { id: "mm-len-vedl", diag: ["MM"], navn: "Lenalidomid vedlikehold", full: "lenalidomid",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [{ n: "Lenalidomid", d: "15 mg (dårlig toleranse under induksjon: 10 mg)", r: "po", s: [[1, null, "1-21"]] }],
+    premed: [], stotte: [S_ASA],
+    warn: "Oppstart 8-14 uker etter HMAS. Gjentas til progresjon eller uakseptabel toksisitet." },
+  { id: "mm-vr-vedl", diag: ["MM"], navn: "Lenalidomid + bortezomib vedlikehold (høyrisiko)", full: "lenalidomid/bortezomib",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [{ n: "Lenalidomid", d: "15 mg (dårlig toleranse under induksjon: 10 mg)", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,15"]] }],
+    premed: [], stotte: [S_VALA250, S_ASA],
+    warn: "For genetisk høyrisikosykdom når bortezomib er godt tolerert. Gjentas til progresjon eller uakseptabel toksisitet." },
+  { id: "mm-darar-vedl", diag: ["MM"], navn: "Daratumumab + lenalidomid vedlikehold (ikke refundert)", full: "daratumumab/lenalidomid",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [{ n: "Lenalidomid", d: "15 mg (dårlig toleranse under induksjon: 10 mg)", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Daratumumab", d: "1800 mg", r: "sc", s: [[1, null, "1"]] }],
+    premed: [], stotte: [S_VALA250, S_ASA],
+    warn: "IKKE REFUNDERT – til metodevurdering i Nye Metoder. Daratumumab kan avsluttes etter MRD-negativ CR > 12 mnd og minst 24 mnd vedlikehold; lenalidomid kontinueres." },
+  // Førstelinje – ikke kandidater for HMAS
+  { id: "mm-daravrd", diag: ["MM"], navn: "Dara-VRd (ikke HMAS-kandidat)", full: "daratumumab/bortezomib/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 515-517 / 266", url: KB + "4kwMWWCe", len: 28,
+    meds: [DEX_WEEKLY, LEN, DARA_SC, BORT_1_8],
+    premed: [P_DARA_HP], stotte: [S_VALA250, S_ASA],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet. Lav terskel for å seponere deksametason etter 12 måneder." },
+  { id: "mm-isavrd", diag: ["MM"], navn: "Isa-VRd (ikke HMAS-kandidat)", full: "isatuksimab/bortezomib/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 615abcd", url: KB + "Ka62mtvM", len: 28,
+    meds: [DEX_WEEKLY, LEN,
+      { n: "Isatuksimab", d: "1400 mg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, 17, "1,15"], [18, null, "1"]] },
+      BORT_1_8],
+    premed: [P_ISA_HP], stotte: [S_VALA250, S_ASA],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet. Lav terskel for å seponere deksametason etter 12 måneder. NB: Kurbiblioteket (Blod 615) angir isatuksimab dag 1, 15 til og med syklus 21." },
+  { id: "mm-drd", diag: ["MM"], navn: "DRd", full: "daratumumab/lenalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 264-266 (daratumumab)", url: KB + "FrDmpJCf", len: 28,
+    meds: [DEX_WEEKLY, LEN, DARA_SC],
+    premed: [P_DARA_HP], stotte: [S_VALA250, S_ASA],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet. Lav terskel for å seponere deksametason etter 12 måneder." },
+  // Andrelinje
+  { id: "mm-isakd", diag: ["MM"], navn: "Isa-Kd", full: "isatuksimab/karfilzomib/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 613ab", url: KB + "dbrFRvWy", len: 28,
+    meds: [DEX_WEEKLY,
       { n: "Isatuksimab", d: "1400 mg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, null, "1,15"]] },
       { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
       { n: "Karfilzomib", d: "70 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: [P_KARF, P_ISA], stotte: [S_VALA250],
-    warn: "Maks. kroppsoverflate 2,2 m² for overflatedoserte medikamenter." },
-  { id: "darakd", diag: ["MM"], navn: "Dara-Kd 20/70", full: "daratumumab/karfilzomib/deksametason",
-    ref: "Blod 402-405", url: KB + "J7FD5yhq", len: 28,
-    meds: [DEX_WEEKLY, DARA_SC,
-      { n: "Karfilzomib", d: "20 mg/m²", r: "iv", s: [[1, 1, "1"]] },
-      { n: "Karfilzomib", d: "70 mg/m²", r: "iv", s: [[1, 1, "8,15"], [2, null, "1,8,15"]] }],
-    premed: ["Ca. 1 t før daratumumab: ukens deksametasondose, paracetamol 750-1000 mg (kan utelates etter 2 doser uten reaksjon) og cetirizin 10(-20) mg po (kan utelates etter 4 doser uten reaksjon). Montelukast kan vurderes."],
-    stotte: ["Po Metylprednisolon 20 mg eller deksametason 4 mg dag 2 og 3 etter daratumumab (kan utelates etter 3 doser uten reaksjon)", S_VALA250, "Tromboseprofylakse ved økt risiko (ASA el. LMWH)"] },
-  { id: "tek-opp", diag: ["MM"], navn: "Teklistamab – opptrapping", full: "teklistamab",
-    ref: "Blod 503", url: KB + "6c4U7g8G", len: 4,
-    meds: [{ n: "Teklistamab", d: "0,06 mg/kg", r: "sc", s: [[1, null, "1"]] },
-      { n: "Teklistamab", d: "0,3 mg/kg", r: "sc", s: [[1, null, "3"]] }],
-    premed: ["Tocilizumab 8 mg/kg iv (maks 800 mg) 2-3 t før første opptrappingsdose (anbefalt).", "1-3 t før hver opptrappingsdose og første behandlingsdose: deksametason 16 mg po/iv, cetirizin 10 mg po el. deksklorfeniramin 5 mg iv, paracetamol 1000 mg po."],
-    stotte: S_BISPEC,
-    warn: "Andre opptrappingsdose kan bli utsatt – tidfest én dose av gangen. Kurmatrisen bygger på tysk konsensus og avviker fra doseringen i Nye Metoder. Ukentlig dosering (Blod 504) starter tidligst 48 t etter andre opptrappingsdose." },
-  { id: "tek-1", diag: ["MM"], navn: "Teklistamab 1,5 mg/kg ukentlig", full: "teklistamab",
-    ref: "Blod 504", url: KB + "6c4U7g8G", len: 28,
-    meds: [{ n: "Teklistamab", d: "1,5 mg/kg", r: "sc", s: [[1, null, "1,8,15,22"]] }],
-    premed: ["Før første behandlingsdose: deksametason 16 mg po/iv, cetirizin 10 mg po el. deksklorfeniramin 5 mg iv, paracetamol 1000 mg po. Senere ved behov (tidligere reaksjon eller ny opptrapping etter utsettelse)."],
-    stotte: S_BISPEC,
-    warn: "Starter tidligst 48 t etter andre opptrappingsdose; minst 5 dagers intervall mellom dosene. Deretter Blod 505 (hver 2. uke) og Blod 506 (hver 4. uke)." },
-  { id: "tek-2", diag: ["MM"], navn: "Teklistamab 1,5 mg/kg hver 2. uke", full: "teklistamab",
-    ref: "Blod 505", url: KB + "6c4U7g8G", len: 28,
-    meds: [{ n: "Teklistamab", d: "1,5 mg/kg", r: "sc", s: [[1, null, "1,15"]] }],
-    premed: [], stotte: S_BISPEC },
-  { id: "tek-4", diag: ["MM"], navn: "Teklistamab 1,5 mg/kg hver 4. uke", full: "teklistamab",
-    ref: "Blod 506", url: KB + "6c4U7g8G", len: 28,
-    meds: [{ n: "Teklistamab", d: "1,5 mg/kg", r: "sc", s: [[1, null, "1"]] }],
-    premed: [], stotte: S_BISPEC },
-  { id: "elra", diag: ["MM"], navn: "Elranatamab", full: "elranatamab",
-    ref: "Blod 512-514", url: KB + "S98UUTuP", len: 28,
-    meds: [{ n: "Elranatamab", d: "12 mg", r: "sc", s: [[1, 1, "1"]] },
-      { n: "Elranatamab", d: "32 mg", r: "sc", s: [[1, 1, "3"]] },
-      { n: "Elranatamab", d: "76 mg", r: "sc", s: [[1, 1, "8,15,22"], [2, 4, "1,8,15,22"], [5, null, "1"]] }],
-    premed: ["Før de tre første dosene i syklus 1, ca. 60 min før: paracetamol 500 mg po, cetirizin 10 mg po el. deksklorfeniramin 5 mg iv, deksametason 20 mg po/iv. Senere etter individuell vurdering."],
-    stotte: S_BISPEC,
-    warn: "Kurbiblioteket angir premedikasjon «dag 1, 4 og 8» mens 32 mg-dosen er satt til dag 3. Kurmatrisen angir dag 1 fra syklus 5; kontroller doseintervallet mot handlingsprogrammet." },
-  { id: "elord", diag: ["MM"], navn: "Elo-Rd", full: "elotuzumab/lenalidomid/deksametason",
-    ref: "Blod 188 (syklus 1-2) / 189 (syklus 3+)", url: KB + "zaxF5cp8", len: 28,
-    meds: [{ n: "Deksametason", d: "20 mg", r: "po", s: [[1, 2, "1,8,15,22"], [3, null, "1,15"]] },
-      { n: "Deksametason", d: "40 mg", r: "po", s: [[3, null, "8,22"]] },
-      { ...LEN },
-      { n: "Elotuzumab", d: "10 mg/kg", r: "iv", s: [[1, 2, "1,8,15,22"], [3, null, "1,15"]] }],
-    premed: ["45-90 min før elotuzumab (i tillegg til deksametason i kurmatrisen): deksametason 8 mg iv, prometazin 25 mg po, famotidin 40 mg po og paracetamol 1000 mg po.", "Deksametason po på elotuzumabdager tas 3-24 t før (kvelden før). Lenalidomid tas ≥ 2 t etter elotuzumab."],
-    stotte: [],
-    warn: "Deksametasondosen for syklus 3+ er tolket fra kurbiblioteket (20 mg dag 1 og 15, 40 mg dag 8 og 22); teksten der er utydelig. Kontroller mot kurmatrisen." },
-  { id: "elopd", diag: ["MM"], navn: "Elo-Pd", full: "elotuzumab/pomalidomid/deksametason",
-    ref: "Blod 606ab", url: KB + "difycLFx", len: 28,
-    meds: [{ n: "Deksametason", d: "28 mg (> 75 år: 8 mg) + 8 mg iv premed", r: "po", s: [[1, 2, "1,8,15,22"], [3, null, "1"]] },
-      { n: "Deksametason", d: "40 mg (> 75 år: 20 mg)", r: "po", s: [[3, null, "8,15,22"]] },
-      { n: "Pomalidomid", d: "4 mg", r: "po", s: [[1, null, "1-21"]] },
-      { n: "Elotuzumab", d: "10 mg/kg", r: "iv", s: [[1, 2, "1,8,15,22"]] },
-      { n: "Elotuzumab", d: "20 mg/kg", r: "iv", s: [[3, null, "1"]] }],
-    premed: ["45-60 min før hver dose elotuzumab: deksametason 8 mg iv (peroral dose reduseres tilsvarende), antihistamin (cetirizin 10 mg po el. deksklorfeniramin 5 mg iv), H2-blokker (famotidin 20 mg po) og paracetamol 1000 mg po."],
-    stotte: [S_VALA250 + " (til 3 mnd etter avsluttet behandling)", "Po Trimetoprim/sulfa (Bactrim) 80/400 mg 1 tab. 3 dager/uke i 6 mnd eller til CD4 ≥ 200", "Tromboseprofylakse (pomalidomid) vurderes", "Flukonazol 400 mg x 1 ved nøytrofile < 0,5 i > 7 dager"] },
-  { id: "bpd", diag: ["MM"], navn: "BPd", full: "belantamabmafodotin/pomalidomid/deksametason",
-    ref: "Blod 567 (syklus 1) / 568 (syklus 2+)", url: KB + "nE8qaACc", len: 56,
+    premed: [P_ISA_HP], stotte: [S_VALA250, "Sjekk vaksinasjonsstatus og revaksiner ved indikasjon"],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet." },
+  { id: "mm-bpd", diag: ["MM"], navn: "BPd", full: "belantamabmafodotin/pomalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 567/568", url: KB + "nE8qaACc", len: 56,
     meds: [{ n: "Deksametason", d: DEX_40_20, r: "po", s: [[1, null, "1,8,15,22,29,36,43,50"]] },
       { n: "Pomalidomid", d: "4 mg", r: "po", s: [[1, null, "1-21,29-49"]] },
       { n: "Belantamabmafodotin", d: "2,5 mg/kg", r: "iv", s: [[1, 1, "1"]] },
       { n: "Belantamabmafodotin", d: "1,9 mg/kg", r: "iv", s: [[2, null, "1"]] }],
-    premed: ["Ingen rutinemessig premedikasjon; ved tidligere infusjonsreaksjon etter vanlige retningslinjer."],
-    stotte: ["Kunstig tårevæske uten konserveringsmiddel x 4-8 daglig fra syklus 1 dag 1", S_ASA, S_ULCUS + " vurderes"] },
-  { id: "bvd", diag: ["MM"], navn: "BVd", full: "belantamabmafodotin/bortezomib/deksametason",
-    ref: "Blod 569 (syklus 1) / 570 (syklus 2+)", url: KB + "4nS9H82B", len: 56,
+    premed: [], stotte: [S_VALA250, S_ASA, S_OYE],
+    oppf: [[1, 1, 1, "Øyelegeundersøkelse før første dose belantamabmafodotin"]],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet. Ved øyesymptomer nulles belantamabmafodotin og pasienten henvises til øyelege; ved restart økes doseintervallet. Ved uholdbare øyesymptomer på 1,9 mg/kg kan 1,4 mg/kg forsøkes." },
+  { id: "mm-bvd", diag: ["MM"], navn: "BVd", full: "belantamabmafodotin/bortezomib/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 569/570", url: KB + "4nS9H82B", len: 56,
     meds: [{ n: "Deksametason", d: DEX_40_20, r: "po", s: [[1, null, "1,8,15,22,29,36,43,50"]] },
       { n: "Belantamabmafodotin", d: "2,5 mg/kg", r: "iv", s: [[1, 1, "1"]] },
       { n: "Belantamabmafodotin", d: "1,9 mg/kg", r: "iv", s: [[2, null, "1"]] },
-      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, null, "1,8,15,29,36,43"]] }],
-    premed: ["Ingen rutinemessig premedikasjon; ved tidligere infusjonsreaksjon etter vanlige retningslinjer."],
-    stotte: ["Kunstig tårevæske uten konserveringsmiddel x 4-8 daglig fra syklus 1 dag 1", S_VALA250, S_ULCUS + " vurderes"] },
+      { n: "Bortezomib", d: "1,3 mg/m²", r: "sc", s: [[1, 4, "1,8,15,29,36,43"]] }],
+    premed: [], stotte: [S_VALA250, S_OYE],
+    oppf: [[1, 1, 1, "Øyelegeundersøkelse før første dose belantamabmafodotin"]],
+    warn: "Bortezomib gis i syklus 1-4. Gjentas til progresjon eller uakseptabel toksisitet. Ved øyesymptomer nulles belantamabmafodotin og pasienten henvises til øyelege; ved restart økes doseintervallet." },
+  // Tredjelinje
+  { id: "mm-epd", diag: ["MM"], navn: "EPd", full: "elotuzumab/pomalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 606ab", url: KB + "difycLFx", len: 28,
+    meds: [DEX_WEEKLY,
+      { n: "Pomalidomid", d: "4 mg", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Elotuzumab", d: "10 mg/kg", r: "iv", s: [[1, 2, "1,8,15,22"]] },
+      { n: "Elotuzumab", d: "20 mg/kg", r: "iv", s: [[3, null, "1"]] }],
+    premed: ["45-60 min før hver dose elotuzumab: deksametason 8 mg iv, antihistamin (cetirizin 10 mg po el. deksklorfeniramin 5 mg iv), H2-blokker (famotidin 20 mg po) og paracetamol 1000 mg po (fra kurbiblioteket Blod 606)."],
+    stotte: [S_VALA250, S_ASA, "Sjekk vaksinasjonsstatus og revaksiner ved indikasjon"],
+    warn: "Gjentas til progresjon eller uakseptabel toksisitet. Handlingsprogrammet angir ikke premedikasjon; teksten er hentet fra kurbiblioteket (Blod 606), som også reduserer peroral deksametason med 8 mg på elotuzumabdager." },
+  { id: "mm-pcd", diag: ["MM"], navn: "PCd", full: "pomalidomid/syklofosfamid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [DEX_WEEKLY,
+      { n: "Pomalidomid", d: "4 mg", r: "po", s: [[1, null, "1-21"]] },
+      { n: "Syklofosfamid", d: "400 mg", r: "po", s: [[1, null, "1,8,15"]] }],
+    premed: [], stotte: [S_VALA250, S_ASA, "Sjekk vaksinasjonsstatus og revaksiner ved indikasjon"],
+    warn: "Helt peroralt regime. Gjentas til progresjon eller uakseptabel toksisitet." },
+  { id: "mm-pd", diag: ["MM"], navn: "Pd", full: "pomalidomid/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [DEX_WEEKLY, { n: "Pomalidomid", d: "4 mg", r: "po", s: [[1, null, "1-21"]] }],
+    premed: [], stotte: [S_VALA250, S_ASA, "Sjekk vaksinasjonsstatus og revaksiner ved indikasjon"],
+    warn: "Gis som PCd uten syklofosfamid. Helt peroralt regime." },
+  // Fjerdelinje – bispesifikke
+  { id: "mm-tek", diag: ["MM"], navn: "Teklistamab", full: "teklistamab",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 503-506", url: KB + "6c4U7g8G", len: 28, len0: 5, premedC: [0, 1],
+    meds: [{ n: "Teklistamab", d: "0,06 mg/kg (1. step-up)", r: "sc", s: [[0, 0, "1"]] },
+      { n: "Teklistamab", d: "0,3 mg/kg (2. step-up)", r: "sc", s: [[0, 0, "3"]] },
+      { n: "Teklistamab", d: "1,5 mg/kg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, 2, "1,15"], [3, null, "1"]] }],
+    premed: ["Deksametason 16 mg, cetirizin 10 mg og paracetamol 1000 mg 1-3 t før begge step-up-doser og første fulldose. Ved reaksjon på første fulldose gis forbehandling til en injeksjon er gitt helt uten reaksjon.", "Tocilizumab 8 mg/kg iv (maks 800 mg) kan gis profylaktisk 3 t (± 1 t) før første opptrappingsdose."],
+    stotte: S_BISPEC_HP,
+    warn: "Minst 48 t fra 2. opptrappingsdose til første fulldose (syklus 1 dag 1). Ikke ny dose under pågående CRS/ICANS; CRS-fri uten behandling i minst 24 t. Fra syklus 3 kan 3,0 mg/kg gis dag 1. Ved usikker respons kan ukentlig dosering forlenges én syklus." },
+  { id: "mm-elra", diag: ["MM"], navn: "Elranatamab", full: "elranatamab",
+    ref: "Handlingsprogram myelomatose v1.4", kb: "Blod 512-514", url: KB + "S98UUTuP", len: 28, len0: 6, premedC: [0, 1],
+    meds: [{ n: "Elranatamab", d: "12 mg (1. step-up)", r: "sc", s: [[0, 0, "1"]] },
+      { n: "Elranatamab", d: "32 mg (2. step-up)", r: "sc", s: [[0, 0, "3"]] },
+      { n: "Elranatamab", d: "76 mg", r: "sc", s: [[1, 1, "1,8,15,22"], [2, 2, "1,15"], [3, null, "1"]] }],
+    premed: ["Deksametason 20 mg, cetirizin 10 mg og paracetamol 1000 mg 1-3 t før begge step-up-doser og første fulldose. Ved reaksjon på første fulldose gis forbehandling til en injeksjon er gitt helt uten reaksjon.", "Tocilizumab 8 mg/kg iv (maks 800 mg) kan gis profylaktisk 3 t (± 1 t) før første opptrappingsdose."],
+    stotte: S_BISPEC_HP,
+    warn: "Minst 72 t fra 2. opptrappingsdose til første fulldose (syklus 1 dag 1). Ikke ny dose under pågående CRS/ICANS; CRS-fri uten behandling i minst 24 t. Refusjonsvedtaket tillater ukentlig dosering i 4 sykluser før reduksjon til månedlig." },
+  // Femtelinje
+  { id: "mm-vend", diag: ["MM"], navn: "Venetoklaks-deksametason (t(11;14), off-label)", full: "venetoklaks/deksametason",
+    ref: "Handlingsprogram myelomatose v1.4", len: 28,
+    meds: [{ n: "Deksametason", d: "40 mg (> 75 år: 20 mg)", r: "po", s: [[1, null, "1,8,15,22"]] },
+      { n: "Venetoklaks", d: "400 mg", r: "po", s: [[1, null, "1-28"]] }],
+    premed: [], stotte: [],
+    warn: "Kun ved t(11;14). Off-label: krever lokal godkjenning/vurdering fra Ekspertpanelet." },
 
   // ---------------- LYMFOM ----------------
   { id: "rchop21", diag: ["DLBCL", "FL", "MCL"], navn: "R-CHOP-21", full: "rituksimab/syklofosfamid/doksorubicin/vinkristin/prednisolon",
@@ -548,6 +519,11 @@ const KURER = [
     warn: "Brukes når pasienten er inneliggende og alle 7 dosene kan gis uten opphold." },
 ];
 
+// Fjern kurer uten gjenværende diagnose
+const _DK = DIAGNOSER.map(([k]) => k);
+KURER.forEach((k) => (k.diag = k.diag.filter((x) => _DK.includes(x))));
+for (let i = KURER.length - 1; i >= 0; i--) if (!KURER[i].diag.length) KURER.splice(i, 1);
+
 const STOTTE_HURTIG = [
   "Po Valaciklovir (Valtrex) 250 mg x 2",
   "Po Valaciklovir (Valtrex) 500 mg x 2",
@@ -604,9 +580,10 @@ function runs(days) {
   return r;
 }
 function dayText(days, start) {
+  const off = (state.kur && state.kur.dagOffset) || 0, L = (x) => x + off;
   return "dag " + runs(days).map(([a, b]) => {
     const da = addDays(start, a - 1), db = addDays(start, b - 1);
-    return a === b ? `${a} (${fmtW(da)})` : `${a}-${b} (${fmtW(da)} - ${fmtW(db)})`;
+    return a === b ? `${L(a)} (${fmtW(da)})` : `${L(a)} til ${L(b)} (${fmtW(da)} - ${fmtW(db)})`.replace(/^(-?\d+) til (-?\d+)/, (m, x, y) => (+x >= 0 && +y >= 0 ? `${x}-${y}` : m));
   }).join(", ");
 }
 
@@ -641,9 +618,9 @@ function dayFlag(d) {
 const state = {
   kur: null, diagKey: "", diagTekst: "", doser: [], pct: {}, premed: "", stotte: "",
   sykluser: [], aktiv: 0,
-  opt: { ukedag: false, neste: true, ref: true, pkLabel: "På Kreftpoliklinikken", stotteKomma: true },
+  opt: { ukedag: false, neste: true, ref: true, pkLabel: "På poliklinikken", stotteKomma: true },
 };
-try { const o = JSON.parse(localStorage.getItem("kurplan-opt") || "null"); if (o) Object.assign(state.opt, o); } catch (e) {}
+try { const o = JSON.parse(localStorage.getItem("kurplan-opt") || "null"); if (o) { if (o.pkLabel === "På Kreftpoliklinikken") delete o.pkLabel; Object.assign(state.opt, o); } } catch (e) {}
 function saveOpt() { try { localStorage.setItem("kurplan-opt", JSON.stringify(state.opt)); } catch (e) {} }
 
 function defaultDose(m) {
@@ -659,7 +636,10 @@ function dosnivaTekst(n) {
   const f = (FAST_RED[n] || []).find((x) => x.v === p);
   return f ? f.tekst : `(${p}%)`;
 }
-function cycleLen() { return state.kur ? (state.kur.len || state.kur.nextDefault || 28) : 28; }
+function cycleLen(c) { const k = state.kur; if (!k) return 28; if (c === 0 && k.len0) return k.len0; return k.len || k.nextDefault || 28; }
+function nrOf(s) { const n = parseInt(s.nr, 10); return isNaN(n) ? 1 : n; }
+function startNr() { return state.kur && state.kur.len0 ? 0 : 1; }
+function premedDefault(nr, i) { const k = state.kur; if (!k) return i === 0; if (k.premedC) return k.premedC.includes(nr); return i === 0 || !!k.premedAlle; }
 
 // ---------- Oppsett ----------
 function fillDiag() {
@@ -673,7 +653,7 @@ function fillKur() {
   const list = KURER.filter((r) => k === "ALLE" || r.diag.includes(k));
   sel.disabled = !k;
   sel.innerHTML = '<option value="">' + (k ? "Velg kur …" : "Velg diagnose først") + "</option>" +
-    list.map((r) => `<option value="${r.id}">${r.navn} – ${r.ref.split(" (")[0]}</option>`).join("");
+    list.map((r) => `<option value="${r.id}">${r.navn}${r.linje ? " – " + r.linje : r.ref.startsWith("Handlingsprogram") ? "" : " – " + r.ref.split(" (")[0]}</option>`).join("");
 }
 
 function setKur(id) {
@@ -685,8 +665,12 @@ function setKur(id) {
   state.premed = k.premed.join("\n");
   state.stotte = k.stotte.join("\n");
   $("#premed").value = state.premed; $("#stotte").value = state.stotte;
-  if (!state.sykluser.length) state.sykluser = [{ nr: 1, dato: toISO(new Date()), auto: false, premed: true, stotte: true }];
-  state.sykluser.forEach((s, i) => { if (i > 0) s.premed = !!k.premedAlle; });
+  if (!state.sykluser.length) state.sykluser = [{ nr: startNr(), dato: toISO(new Date()), auto: false, premed: true, stotte: true }];
+  state.sykluser = state.sykluser.slice(0, 1); state.aktiv = 0;
+  const f = state.sykluser[0];
+  if (k.len0 && nrOf(f) === 1) f.nr = 0;
+  if (!k.len0 && nrOf(f) === 0) f.nr = 1;
+  state.sykluser.forEach((s, i) => { if (i > 0) s.nr = nrOf(state.sykluser[i - 1]) + 1; s.premed = premedDefault(nrOf(s), i); });
   recalcAuto();
   renderAll();
 }
@@ -694,18 +678,16 @@ function setKur(id) {
 function recalcAuto() {
   for (let i = 1; i < state.sykluser.length; i++) {
     const s = state.sykluser[i], p = state.sykluser[i - 1];
-    if (s.auto && p.dato) s.dato = toISO(addDays(parseISO(p.dato), cycleLen()));
+    if (s.auto && p.dato) s.dato = toISO(addDays(parseISO(p.dato), cycleLen(nrOf(p))));
   }
 }
 
 // ---------- Tekstgenerering ----------
-function lagTekst(i) {
+function syklusDel(i) {
   const k = state.kur, s = state.sykluser[i];
-  if (!k || !s.dato) return "";
-  const start = parseISO(s.dato), c = Number(s.nr) || 1;
-  const full = i === 0 || c === 1;
-  const po = [], pk = [];
-  const pkMap = new Map();
+  if (!k || !s.dato) return null;
+  const start = parseISO(s.dato), c = nrOf(s);
+  const po = [], pk = [], pkMap = new Map();
   k.meds.forEach((m, idx) => {
     const d = daysFor(m, c); if (!d.length) return;
     if (m.r === "po") {
@@ -713,47 +695,51 @@ function lagTekst(i) {
       po.push(`Po ${m.n}${dose ? " " + dose : ""} ${dayText(d, start)}`);
     } else {
       const key = m.n + "|" + m.r;
-      if (!pkMap.has(key)) pkMap.set(key, { n: m.n, r: m.r, d: new Set() });
+      if (!pkMap.has(key)) pkMap.set(key, { n: m.n, r: m.r, np: !!m.np, d: new Set() });
       d.forEach((x) => pkMap.get(key).d.add(x));
     }
   });
   pkMap.forEach((v) => {
     const days = [...v.d].sort((x, y) => x - y);
-    pk.push(`${v.n} ${dosnivaTekst(v.n)} ${v.r} ${dayText(days, start)}`);
+    pk.push(`${v.n}${v.np ? "" : " " + dosnivaTekst(v.n)} ${v.r} ${dayText(days, start)}`);
   });
   const L = [];
-  const diag = state.diagTekst.trim() || "***";
-  const lenTxt = k.len ? `, sykluslengde ${k.lenUker ? k.len / 7 + " uker" : k.len + " dager"}` : "";
-  if (full) {
-    L.push(`Diagnose: ${diag}`);
-    L.push(`Behandling: ${k.navn}${k.full ? " – " + k.full : ""}${lenTxt}.`);
-  } else {
-    L.push(`Diagnose: ${diag}. Behandling: ${k.navn}${lenTxt}.`);
-  }
-  let hdr = `Syklus ${c}${k.maks ? " av " + k.maks : ""} fom ${fmtW(start)}.`;
-  if (state.opt.neste && k.len && !(k.maks && c >= k.maks)) hdr += ` Planlagt start syklus ${c + 1}: ${fmtW(addDays(start, k.len))}.`;
-  L.push(hdr);
-  if (po.length) { if (full) L.push(""); L.push(...po); }
-  if (pk.length) { L.push(""); L.push(state.opt.pkLabel.trim() + ":"); L.push(...pk); }
+  L.push(c === 0 ? `Opptrapping fom ${fmtW(start)}.` : k.len ? `Syklus ${c}${k.maks ? " av " + k.maks : ""} fom ${fmtW(start)}.` : `Oppstart ${fmtW(start)}.`);
+  if (po.length) L.push(...po);
+  if (pk.length) { if (po.length) L.push(""); L.push(state.opt.pkLabel.trim() + ":"); L.push(...pk); }
   if (!po.length && !pk.length) L.push("(Ingen medikamenter definert for denne syklusen i kurdefinisjonen.)");
-  const oppf = (k.oppf || []).filter(([fra, til]) => c >= fra && (til === null || c <= til));
-  if (oppf.length) {
-    L.push(""); L.push("Videre plan:");
-    oppf.forEach(([, , uke, tekst]) => {
-      const a = addDays(start, (uke - 1) * 7), b = addDays(start, (uke - 1) * 7 + 6);
-      const wa = isoWeek(a), wb = isoWeek(b);
-      L.push(`Behandlingsuke ${uke}, kalenderuke ${wa === wb ? wa : wa + "/" + wb} (${fmtW(a)} - ${fmtW(b)}): ${tekst}`);
-    });
-  }
+  const oppf = (k.oppf || []).filter(([fra, til]) => c >= fra && (til === null || c <= til)).map(([, , uke, tekst]) => {
+    const a = addDays(start, (uke - 1) * 7), b = addDays(start, (uke - 1) * 7 + 6);
+    const wa = isoWeek(a), wb = isoWeek(b);
+    return `Behandlingsuke ${uke}${c > 1 ? ` (syklus ${c})` : ""}, kalenderuke ${wa === wb ? wa : wa + "/" + wb} (${fmtW(a)} - ${fmtW(b)}): ${tekst}`;
+  });
+  let neste = "";
+  if (c === 0) neste = `Planlagt syklus 1 dag 1 (første fulldose): ${fmtW(addDays(start, cycleLen(0)))}.`;
+  else if (k.len && !(k.maks && c >= k.maks)) neste = `Planlagt start syklus ${c + 1}: ${fmtW(addDays(start, k.len))}.`;
+  return { L, oppf, neste };
+}
+
+function lagNotat() {
+  const k = state.kur;
+  if (!k) return "";
+  const deler = state.sykluser.map((_, i) => syklusDel(i)).filter(Boolean);
+  if (!deler.length) return "";
+  const N = [];
+  const lenTxt = k.len ? `, sykluslengde ${k.lenUker ? k.len / 7 + " uker" : k.len + " dager"}` : "";
+  N.push(`Behandling: ${k.navn}${k.full && !k.full.toLowerCase().split("/").every((x) => k.navn.toLowerCase().includes(x.trim())) ? " – " + k.full : ""}${lenTxt}.`);
+  deler.forEach((d) => { N.push(""); N.push(...d.L); });
+  const oppf = deler.flatMap((d) => d.oppf);
+  if (oppf.length) { N.push(""); N.push("Videre plan:"); N.push(...oppf); }
   const premed = state.premed.split("\n").map((x) => x.trim()).filter(Boolean);
   const stotte = state.stotte.split("\n").map((x) => x.trim()).filter(Boolean);
-  if (s.premed && premed.length) { L.push(""); L.push("Premedikasjon:"); L.push(...premed); }
-  if (s.stotte && stotte.length) {
-    L.push("");
-    if (state.opt.stotteKomma) L.push("Støttebehandling: " + stotte.join(", ") + ".");
-    else { L.push("Støttebehandling:"); L.push(...stotte); }
+  if (state.sykluser.some((s) => s.premed) && premed.length) { N.push(""); N.push("Premedikasjon:"); N.push(...premed); }
+  if (state.sykluser.some((s) => s.stotte) && stotte.length) {
+    N.push("");
+    if (state.opt.stotteKomma) N.push("Støttebehandling: " + stotte.join(", ") + ".");
+    else { N.push("Støttebehandling:"); N.push(...stotte); }
   }
-  return L.join("\n");
+  if (state.opt.neste && deler.length === 1 && deler[0].neste) { N.push(""); N.push(deler[0].neste); }
+  return N.join("\n");
 }
 
 function advarsler() {
@@ -761,7 +747,7 @@ function advarsler() {
   if (!k) return out;
   state.sykluser.forEach((s) => {
     if (!s.dato) return;
-    const start = parseISO(s.dato), c = Number(s.nr) || 1;
+    const start = parseISO(s.dato), c = nrOf(s);
     const seen = new Set();
     k.meds.forEach((m) => {
       if (m.r === "po") return;
@@ -784,15 +770,15 @@ function renderAll() {
 function renderInfo() {
   const k = state.kur, el = $("#kurinfo");
   if (!k) { el.innerHTML = ""; return; }
-  el.innerHTML = `<div class="meta"><span><b>${k.ref}</b></span><span>${k.len ? "Sykluslengde " + k.len + " dager" : "Ikke fast syklus"}</span>
-    <a href="${k.url}" target="_blank" rel="noopener">Åpne i kurbiblioteket ↗</a></div>
+  el.innerHTML = `<div class="meta"><span><b>${k.ref}</b></span>${k.linje ? `<span>${k.linje}</span>` : ""}<span>${k.len ? "Sykluslengde " + k.len + " dager" : "Ikke fast syklus"}${k.maks ? " · " + k.maks + " sykluser" : ""}</span>
+    ${k.url ? `<a href="${k.url}" target="_blank" rel="noopener">${k.kb ? "Tilsvarende kur i kurbiblioteket: " + k.kb : "Åpne kilde"} ↗</a>` : ""}</div>
     ${k.warn ? `<div class="warn"><b>Merk:</b> ${k.warn}</div>` : ""}`;
 }
 
 function renderDoser() {
   const k = state.kur, el = $("#doser");
   if (!k) { el.innerHTML = ""; return; }
-  const sk = (m) => m.s.map(([f, t, d]) => (f === 1 && t === null ? "" : `C${f}${t === null ? "+" : t !== f ? "-" + t : ""}: `) + "dag " + d).join("; ");
+  const sk = (m) => m.s.map(([f, t, d]) => (f === 1 && t === null ? "" : f === 0 ? "Opptrapping: " : `C${f}${t === null ? "+" : t !== f ? "-" + t : ""}: `) + "dag " + d).join("; ");
   let html = "";
   const po = k.meds.map((m, i) => [m, i]).filter(([m]) => m.r === "po");
   if (po.length) {
@@ -800,10 +786,10 @@ function renderDoser() {
       `<label class="dose"><span class="dn">Po ${m.n} <small>grunndose ${m.d} · ${sk(m)}</small></span>
       <input data-i="${i}" value="${(state.doser[i] || "").replace(/"/g, "&quot;")}" placeholder="(ingen dose i teksten)"></label>`).join("");
   }
-  const names = [...new Set(k.meds.filter((m) => m.r !== "po").map((m) => m.n))];
+  const names = [...new Set(k.meds.filter((m) => m.r !== "po" && !m.np).map((m) => m.n))];
   if (names.length) {
     const opts = [100, 90, 85, 80, 75, 70, 67, 60, 50, 40, 33, 25];
-    html += '<div class="sub">' + state.opt.pkLabel.replace(/^På /, "") + ' – dosenivå (doser ligger i Cytodose)</div>' + names.map((n) => {
+    html += '<div class="sub">' + state.opt.pkLabel.replace(/^På /, "").replace(/^./, (x) => x.toUpperCase()) + ' – dosenivå (doser ligger i Cytodose)</div>' + names.map((n) => {
       const ms = k.meds.filter((m) => m.n === n && m.r !== "po");
       const cur = pctFor(n);
       return `<div class="pctrow"><span class="dn">${n} <small>${ms.map((m) => m.r + " " + m.d + (sk(m) ? " · " + sk(m) : "")).join(" | ")}</small></span>
@@ -819,7 +805,7 @@ function renderSykluser() {
   const el = $("#sykluser");
   el.innerHTML = state.sykluser.map((s, i) => `
     <div class="syk ${i === state.aktiv ? "aktiv" : ""}" data-i="${i}">
-      <label>Syklus <input type="number" min="1" class="nr" value="${s.nr}"></label>
+      <label>${nrOf(s) === 0 ? "Opptr." : "Syklus"} <input type="number" min="0" class="nr" value="${s.nr}"></label>
       <label>Dag 1 <input type="date" class="dato" value="${s.dato || ""}"></label>
       ${i > 0 ? `<span class="auto" title="Beregnet fra forrige syklus">${s.auto ? "auto" : "manuell"}</span>` : ""}
       <label class="cb"><input type="checkbox" class="pm" ${s.premed ? "checked" : ""}> premed</label>
@@ -842,7 +828,7 @@ function renderSykluser() {
 function renderKalender() {
   const el = $("#kalender"), k = state.kur, s = state.sykluser[state.aktiv];
   if (!k || !s) { el.innerHTML = ""; return; }
-  const c = Number(s.nr) || 1, len = cycleLen();
+  const c = nrOf(s), len = cycleLen(c);
   const start = s.dato ? parseISO(s.dato) : new Date();
   const marks = {};
   if (s.dato) k.meds.forEach((m) => daysFor(m, c).forEach((d) => {
@@ -851,7 +837,7 @@ function renderKalender() {
     marks[iso][m.r === "po" ? "po" : "pk"] = true;
   }));
   const end = addDays(start, len - 1);
-  let html = `<div class="kalhead">Syklus ${c}${s.dato ? `: ${fmt(start)} – ${fmt(end)}` : ""} <small>Klikk en dato for å sette dag 1 for denne syklusen</small></div><div class="months">`;
+  let html = `<div class="kalhead">${c === 0 ? "Opptrapping" : "Syklus " + c}${s.dato ? `: ${fmt(start)} – ${fmt(end)}` : ""} <small>Klikk en dato for å sette dag 1 for denne syklusen</small></div><div class="months">`;
   let mStart = new Date(start.getFullYear(), start.getMonth(), 1);
   const last = new Date(end.getFullYear(), end.getMonth(), 1);
   let guard = 0;
@@ -873,7 +859,7 @@ function renderKalender() {
     html += "</div></div>";
     mStart = new Date(mStart.getFullYear(), mStart.getMonth() + 1, 1);
   }
-  html += `</div><div class="legend"><span><i class="pk"></i> ${state.opt.pkLabel.replace(/^På /, "")}</span><span><i class="po"></i> peroralt</span><span><b class="offbox"></b> helg/helligdag</span></div>`;
+  html += `</div><div class="legend"><span><i class="pk"></i> ${state.opt.pkLabel.replace(/^På /, "").replace(/^./, (x) => x.toUpperCase())}</span><span><i class="po"></i> peroralt</span><span><b class="offbox"></b> helg/helligdag</span></div>`;
   el.innerHTML = html;
   el.querySelectorAll(".day").forEach((b) => b.addEventListener("click", () => {
     s.dato = b.dataset.iso; s.auto = false; recalcAuto(); renderSykluser(); renderKalender(); renderOutput();
@@ -883,14 +869,9 @@ function renderKalender() {
 function renderOutput() {
   const el = $("#output");
   if (!state.kur) { el.innerHTML = ""; return; }
-  const warns = advarsler();
-  el.innerHTML = state.sykluser.map((s, i) => {
-    const t = lagTekst(i);
-    return `<div class="out"><div class="outhead"><b>Syklus ${s.nr}</b>${i === 0 || +s.nr === 1 ? " · utfyllende" : " · forenklet"}
-      <button class="copy" data-i="${i}">Kopier</button></div>
-      <textarea readonly rows="${Math.min(30, t.split("\n").length + 1)}">${t.replace(/</g, "&lt;")}</textarea></div>`;
-  }).join("") + (warns.length ? `<div class="warn"><b>Behandlingsdager på helg/helligdag (poliklinikk):</b><br>${warns.join("<br>")}</div>` : "");
-  el.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", () => kopier(lagTekst(+b.dataset.i), b)));
+  const warns = advarsler(), t = lagNotat();
+  el.innerHTML = `<div class="out"><textarea readonly>${t.replace(/</g, "&lt;")}</textarea></div>` +
+    (warns.length ? `<div class="warn"><b>Behandlingsdager på helg/helligdag (poliklinikk):</b><br>${warns.join("<br>")}</div>` : "");
   el.querySelectorAll("textarea").forEach((ta) => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + 4 + "px"; });
 }
 
@@ -909,10 +890,8 @@ function init() {
   $("#diag").addEventListener("change", (e) => {
     state.diagKey = e.target.value;
     const d = DIAGNOSER.find(([k]) => k === state.diagKey);
-    if (d) { state.diagTekst = d[1]; $("#diagtekst").value = d[1]; }
     fillKur(); setKur("");
   });
-  $("#diagtekst").addEventListener("input", (e) => { state.diagTekst = e.target.value; renderOutput(); });
   $("#kur").addEventListener("change", (e) => setKur(e.target.value));
   $("#premed").addEventListener("input", (e) => { state.premed = e.target.value; renderOutput(); });
   $("#stotte").addEventListener("input", (e) => { state.stotte = e.target.value; renderOutput(); });
@@ -923,7 +902,8 @@ function init() {
   }));
   $("#addSyk").addEventListener("click", () => {
     const p = state.sykluser[state.sykluser.length - 1];
-    state.sykluser.push({ nr: (Number(p.nr) || 0) + 1, dato: p.dato ? toISO(addDays(parseISO(p.dato), cycleLen())) : "", auto: true, premed: !!(state.kur && state.kur.premedAlle), stotte: false });
+    if (state.kur && state.kur.maks && nrOf(p) >= state.kur.maks) return;
+    const nn = nrOf(p) + 1; state.sykluser.push({ nr: nn, dato: p.dato ? toISO(addDays(parseISO(p.dato), cycleLen(nrOf(p)))) : "", auto: true, premed: premedDefault(nn, state.sykluser.length), stotte: false });
     state.aktiv = state.sykluser.length - 1; renderSykluser(); renderKalender(); renderOutput();
   });
   $("#add3").addEventListener("click", () => { for (let i = 0; i < 3; i++) $("#addSyk").click(); });
@@ -931,14 +911,14 @@ function init() {
   $("#stjerner").addEventListener("click", () => { state.doser = state.kur.meds.map(defaultDose); renderDoser(); renderOutput(); });
   $("#fullDose").addEventListener("click", () => { state.pct = {}; renderDoser(); renderOutput(); });
   $("#resetTekst").addEventListener("click", () => { $("#premed").value = state.premed = state.kur.premed.join("\n"); $("#stotte").value = state.stotte = state.kur.stotte.join("\n"); renderOutput(); });
-  $("#kopierAlle").addEventListener("click", (e) => kopier(state.sykluser.map((_, i) => lagTekst(i)).join("\n\n"), e.target));
+  $("#kopierAlle").addEventListener("click", (e) => kopier(lagNotat(), e.target));
   [["ukedag", "optUkedag"], ["neste", "optNeste"], ["stotteKomma", "optKomma"]].forEach(([k, id]) => {
     const cb = $("#" + id); cb.checked = state.opt[k];
     cb.addEventListener("change", () => { state.opt[k] = cb.checked; saveOpt(); renderOutput(); });
   });
   const pl = $("#optPk"); pl.value = state.opt.pkLabel;
   pl.addEventListener("input", () => { state.opt.pkLabel = pl.value; saveOpt(); renderOutput(); renderKalender(); renderDoser(); });
-  $("#kildeliste").innerHTML = KURER.map((k) => `<li><a href="${k.url}" target="_blank" rel="noopener">${k.ref}</a> – ${k.navn}</li>`).join("");
+  $("#kildeliste").innerHTML = KURER.map((k) => `<li>${k.url && !k.kb ? `<a href="${k.url}" target="_blank" rel="noopener">${k.ref}</a>` : k.ref} – ${k.navn}</li>`).join("");
   renderAll();
 }
 document.addEventListener("DOMContentLoaded", init);
